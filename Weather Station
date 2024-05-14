@@ -1,0 +1,83 @@
+#include <ESP8266WiFi.h>
+#include <DHT.h>
+
+#define DHTPIN D4          // Define the pin where your DHT11 sensor is connected
+#define DHTTYPE DHT11      // Define the type of DHT sensor
+
+const char* ssid = "NAVEE";          // Your WiFi SSID
+const char* password = "012345678";  // Your WiFi password
+
+const char* server = "api.thingspeak.com";    // ThingSpeak server address
+const String apiKey = "*******";         // Your ThingSpeak Write API key
+
+DHT dht(DHTPIN, DHTTYPE);
+
+void setup() {
+  Serial.begin(9600);
+  delay(10);
+  
+  // Connect to WiFi
+  Serial.println();
+  Serial.println();
+  Serial.print("Connecting to ");
+  Serial.println(ssid);
+  
+  WiFi.begin(ssid, password);
+  
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  
+  Serial.println("");
+  Serial.println("WiFi connected");
+  Serial.println("IP address: ");
+  Serial.println(WiFi.localIP());
+}
+
+void loop() {
+  // Reading temperature or humidity
+  float humidity = dht.readHumidity();
+  float temperature = dht.readTemperature();
+  
+  // Check if any reading failed
+  if (isnan(humidity) || isnan(temperature)) {
+    Serial.println("Failed to read from DHT sensor!");
+    return;
+  }
+  
+  Serial.print("Humidity: ");
+  Serial.print(humidity);
+  Serial.print("%\t");
+  Serial.print("Temperature: ");
+  Serial.print(temperature);
+  Serial.println("°C ");
+  
+  // Send data to ThingSpeak
+  if (WiFi.status() == WL_CONNECTED) {
+    WiFiClient client;
+    if (client.connect(server, 80)) {
+      String postStr = apiKey;
+      postStr += "&field1=";
+      postStr += String(temperature);
+      postStr += "&field2=";
+      postStr += String(humidity);
+      postStr += "\r\n\r\n";
+      
+      client.print("POST /update HTTP/1.1\n");
+      client.print("Host: api.thingspeak.com\n");
+      client.print("Connection: close\n");
+      client.print("X-THINGSPEAKAPIKEY: " + apiKey + "\n");
+      client.print("Content-Type: application/x-www-form-urlencoded\n");
+      client.print("Content-Length: ");
+      client.print(postStr.length());
+      client.print("\n\n");
+      client.print(postStr);
+      
+      Serial.println("Data sent to ThingSpeak!");
+    }
+    client.stop();
+  }
+  
+  delay(20000); // Wait for 20 seconds before sending the next data
+}
